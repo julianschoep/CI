@@ -2,29 +2,53 @@ import os
 import csv
 import numpy as np
 import math
+import matplotlib.pyplot as plt
 dir_path = os.path.dirname(os.path.realpath(__file__))
 files = os.listdir(dir_path+'/train_data')
 csv_files = ['train_data/'+f for f in files if f[-4:]=='.csv' ]
-data = np.array
-col_count = 21 #0-2,3-24,25
-row_count = 24027-3
-l = 10 #num principal components
-data = np.zeros((row_count,col_count))
-y = np.zeros(l)
-w = np.random.normal(size=[l,col_count],scale=0.001)
 
-ln = 0.001 #learning rateju
-i = 0
-for file_name in csv_files:
-	
-	with open(file_name, newline='') as csvfile:
-		reader = csv.reader(csvfile, delimiter=',', quotechar='|')
-		next(reader)
-		for row in reader:
-			data_list = row[3:24]
-			for j in range(len(data_list)):
-				data[i][j] = data_list[j]
-			i+=1
+NUM_FEATURES = 18 #0-2,3-24,25
+
+l = 10#num principal components
+y = np.zeros(l)
+w = np.random.normal(size=[l,NUM_FEATURES],scale=0.001)
+ln = 0.001 #learning reju
+num_epochs = 10
+
+def read_data(files_list):
+	print(files_list)
+	num_datapoints = 0
+	for file_name in files_list:
+		with open(file_name, newline='') as f:
+			r = csv.reader(f)
+			num_datapoints += len(list(r)) -1 #ignore titles rownum_datapoints
+	print(num_datapoints)
+	print(NUM_FEATURES)
+	data  = np.zeros((num_datapoints,NUM_FEATURES))
+	i = 0
+	for file_name in files_list:
+		with open(file_name, newline='') as csvfile:
+			reader = csv.reader(csvfile, delimiter=',', quotechar='|')
+			next(reader)
+			for row in reader:
+				data_list = row[6:24]
+				for j in range(len(data_list)):
+					data[i][j] = data_list[j]
+				i+=1
+	return data
+
+def get_total_variance(data):
+	d = np.transpose(data)
+	cov_matrix = np.cov(d)
+	num_rows = cov_matrix.shape[0]
+	print(cov_matrix.shape)
+	result = 0
+	for i in range(num_rows):
+		for j in range(num_rows):
+			if i == j:
+				result+= cov_matrix[i,j]
+	return result
+
 def update_weights(weights,x,y,ln):
 	num_dest = weights.shape[0] #cols
 	num_src = weights.shape[1]	#rows
@@ -32,7 +56,6 @@ def update_weights(weights,x,y,ln):
 		for i in range(num_src):
 
 			d_w = delta_w(x,y,weights,i,j,ln)
-			print(d_w)
 			weights[j,i] += d_w
 
 def delta_w(x,y,w,source_i,dest_j,ln): #x is a 1x21 vector and y is a 1xl vector
@@ -46,58 +69,79 @@ def zero_centre(matrix): #col is a feature
 	num_col = matrix.shape[1]
 	num_row = matrix.shape[0]
 	for col_i in range(num_col):
+		col_std = np.std(matrix[:,col_i])
 		col_mean = np.mean(matrix[:,col_i])
 		for row_i in range(num_row):
 			val = matrix[row_i,col_i]
-			matrix[row_i,col_i] = (val - col_mean)/col_mean
+			matrix[row_i,col_i] = (val-col_mean)/col_std
 	return matrix
 
-data = zero_centre(np.array(data))
+def plot_binary(pc_data):
+	x = []
+	y = []
+	for row in range(pc_data.shape[0]):
+		x.append(pc_data[row,0])
+		y.append(pc_data[row,1])
+	plt.scatter(x,y,color='r')
+	plt.show()
+#data = np.array(data)
 
-rand_is = np.random.choice(len(data),len(data),replace=False)
 #FEATURES: SPEED	TRACK_POSITION	ANGLE_TO_TRACK_AXIS	TRACK_EDGE_0_TO_17
-g = 0
 
-y1=[]
-y2=[]
-y3=[]
-y4=[]
-y5=[]
-y6=[]
-y7=[]
+def plot_variance_explained(data,pc_data):
+	N = get_total_variance(data) #sums variance of each of its features
+	num_pc = pc_data.shape[1]
+	y=[]
+	for principal_component in range(num_pc):
+		var_pc = np.var(pc_data[:,principal_component])
+		var_explained = var_pc/N
+		y.append(var_explained)
+	plt.scatter(np.arange(num_pc),y)
+	plt.show()
 
 #for rand_i in range(520):
-for rand_i in rand_is:
-	g+=1
-	x = np.array(data[rand_i]) #random sample [21x1] vector w = lx21 matrix y = 1xl matrix
-	y = np.matmul(w,x)
-	update_weights(w,x,y,ln)
-	y1.append(y[0])
-	y2.append(y[1])
-	y3.append(y[2])
-	y4.append(y[3])
-	y5.append(y[4])
-	y6.append(y[5])
-	y7.append(y[6])
-	if math.isnan(y[0]):
-		print(g)
-		break
+def train(data,w,ln):
+	g=0
+	for epoch in range(num_epochs):
+		rand_is = np.random.choice(len(data),len(data),replace=False)
+		for rand_i in rand_is:
+			g+=1
+			x = np.array(data[rand_i]) #random sample [21x1] vector w = lx21 matrix y = 1xl matrix
+			y = np.matmul(w,x)
+			update_weights(w,x,y,ln)
 
-import matplotlib.pyplot as plt
+			if math.isnan(y[0]):
+				print(g)
+				break
+	return w
 
-def plot(y):
-	plt.scatter(np.arange(len(y)),y)
-plot(y1)
-plot(y2)
-plot(y3)
-plot(y4)
-plot(y5)
-plot(y6)
-plot(y7)
-plt.show()
-print(x)
-print(y)
-print(w)
 
-#PROBLEMS:
-#weights go to infinity.
+def PCA(data,w,l): #converts dataset to principal components
+	num_data_points = data.shape[0]
+	print(num_data_points,l)
+	result = np.zeros((num_data_points,l))
+	for point in range(num_data_points):
+		x = np.array(data[point])
+		result[point] = np.matmul(w,x)
+	return result
+
+train_list = csv_files[0:2]
+
+test_list = []
+test_list.append(csv_files[-1])
+train_data = zero_centre(np.array(read_data(train_list)))
+test_data = zero_centre(np.array(read_data(test_list)))
+
+train(train_data,w,ln)
+pc_train = PCA(train_data,w,l)
+pc_test = PCA(test_data,w,l)
+print('total variance in training data:',get_total_variance(train_data))
+print('total variance in the principal components',get_total_variance(pc_train))
+print('variance in PC1',np.var(pc_train[:,0]))
+print('variance in PC2',np.var(pc_train[:,1]))
+plot_variance_explained(test_data,pc_test)
+plot_binary(pc_train)
+plot_binary(pc_test)
+
+
+
